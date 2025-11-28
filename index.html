@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Smooth White Snake — 용용이 버전</title>
+<style>
+  body {
+    margin: 0;
+    background: #08121f;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: sans-serif;
+  }
+  canvas {
+    background: #041022;
+    border-radius: 10px;
+    box-shadow: 0 0 20px #000 inset;
+  }
+  #info {
+    position: fixed;
+    top: 15px;
+    color: #9db7ff;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<div id="info">용용이 버전: 방향키 / WASD로 이동 · 스페이스 = 일시정지</div>
+
+<canvas id="board" width="600" height="600"></canvas>
+
+<script>
+/***************************************************
+ *   Smooth-Animated White Snake — 용용이 Edition
+ ***************************************************/
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+
+const size = 20;
+const cols = canvas.width / size;
+const rows = canvas.height / size;
+
+let snake = [];
+let food = null;
+let dir = {x:1, y:0};
+let nextDir = {x:1, y:0};
+let score = 0;
+
+let lastTick = 0;
+let tickSpeed = 120; // ms per tile movement
+let paused = false;
+
+/***************
+ *  INIT
+ ***************/
+function resetGame() {
+  snake = [
+    {x: 10, y: 10},
+    {x: 9, y: 10},
+    {x: 8, y: 10}
+  ];
+  dir = {x:1, y:0};
+  nextDir = {...dir};
+  score = 0;
+  placeFood();
+}
+resetGame();
+
+/***************
+ *  FOOD
+ ***************/
+function placeFood() {
+  while (true) {
+    const fx = Math.floor(Math.random() * cols);
+    const fy = Math.floor(Math.random() * rows);
+
+    if (!snake.some(s => s.x === fx && s.y === fy)) {
+      food = {x: fx, y: fy};
+      break;
+    }
+  }
+}
+
+/***************
+ *  GAME TICK
+ ***************/
+function gameTick() {
+  // 방향 반전 방지
+  if (!(nextDir.x === -dir.x && nextDir.y === -dir.y)) {
+    dir = nextDir;
+  }
+
+  const head = snake[0];
+  const newHead = {x: head.x + dir.x, y: head.y + dir.y};
+
+  // 충돌 체크
+  if (
+    newHead.x < 0 || newHead.x >= cols ||
+    newHead.y < 0 || newHead.y >= rows ||
+    snake.some(s => s.x === newHead.x && s.y === newHead.y)
+  ) {
+    resetGame();
+    return;
+  }
+
+  snake.unshift(newHead);
+
+  if (newHead.x === food.x && newHead.y === food.y) {
+    score += 10;
+    placeFood();
+  } else {
+    snake.pop();
+  }
+}
+
+/***************
+ *  RENDER: Smooth Animation
+ ***************/
+function render(progress) {
+  ctx.fillStyle = "#041022";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Draw food
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(
+    food.x * size + size/2,
+    food.y * size + size/2,
+    size * 0.35,
+    0, Math.PI * 2
+  );
+  ctx.fill();
+
+  // Draw snake (white + smooth)
+  for (let i = snake.length - 1; i >= 0; i--) {
+    const part = snake[i];
+    const isHead = i === 0;
+
+    // 이전 위치 계산 (smooth interpolation)
+    const prev = snake[i+1] ?? {
+      x: part.x - dir.x,
+      y: part.y - dir.y
+    };
+
+    const px = prev.x * size;
+    const py = prev.y * size;
+    const cx = part.x * size;
+    const cy = part.y * size;
+
+    const x = px + (cx - px) * progress;
+    const y = py + (cy - py) * progress;
+
+    ctx.beginPath();
+    ctx.roundRect(x + 2, y + 2, size - 4, size - 4, 6);
+
+    if (isHead) {
+      // 부드러운 화이트 머리 (그라디언트)
+      const g = ctx.createLinearGradient(x, y, x + size, y + size);
+      g.addColorStop(0, "#ffffff");
+      g.addColorStop(1, "#dddddd");
+      ctx.fillStyle = g;
+    } else {
+      // 몸: 반투명 화이트
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+    }
+    ctx.fill();
+  }
+}
+
+/***************
+ *  LOOP
+ ***************/
+function loop(timestamp) {
+  if (!lastTick) lastTick = timestamp;
+
+  const elapsed = timestamp - lastTick;
+
+  // tick 진행 여부
+  let progress = elapsed / tickSpeed;
+
+  if (elapsed >= tickSpeed) {
+    gameTick();
+    lastTick = timestamp;
+    progress = 0;
+  }
+
+  if (!paused) render(progress);
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/***************
+ *  INPUT
+ ***************/
+window.addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+
+  if (k === " ") {
+    paused = !paused;
+    return;
+  }
+
+  if (k === "arrowup" || k === "w") nextDir = {x:0,y:-1};
+  if (k === "arrowdown" || k === "s") nextDir = {x:0,y:1};
+  if (k === "arrowleft" || k === "a") nextDir = {x:-1,y:0};
+  if (k === "arrowright" || k === "d") nextDir = {x:1,y:0};
+});
+</script>
+
+</body>
+</html>
